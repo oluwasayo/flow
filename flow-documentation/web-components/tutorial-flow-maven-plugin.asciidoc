@@ -121,7 +121,7 @@ The goal parameters are:
     Optional way to split the project frontend dependencies' bundle into multiple fragments.
     Will be used only if bundling is enabled. See [Bundle Configuration](#bundle-configuration) section for details.
 
-* bundleConfiguration `default: ${project.basedir}/bundle-configuration.json`
+* fragmentConfigurationFile `default: ${project.basedir}/fragment-configuration.json`
     Optional path to a json file containing additional configuration parameters used when bundling dependencies.
     The file will only be used if bundling is enabled and the file exists.
     The possible configurations this file can contain are documented below in the [Bundle Configuration](#bundle-configuration) section.
@@ -165,10 +165,10 @@ Thus to effectively split your bundle into fragments, shared dependencies should
 the fragment split to use.
 
 As a starting point for splitting a bundle into fragments it is recommended that you first run the plugin without any
-fragments defined and inspect the produced `vaadin-flow-bundle.html` file, which contains all the front-end dependencies
+fragments defined and inspect the produced `vaadin-flow-bundle-manifest.json` file, which contains all the front-end dependencies
 found in your projects run time classpath.
-The produced bundle can be found in the location defined by the `transpileWorkingDirectory` parameter, which defaults to
-`${project.build.directory}/`, i.e. `target/` if the project build directory has not been configured separately.
+The produced bundle can be found in the location defined by the `transpileOutputDirectory` parameter, which defaults to
+`${project.build.directory}/${project.build.finalName}/`.
 
 When running a bundle enabled flow application in production mode a `DependencyFilter` is automatically registered during startup
 to serve the bundle and fragment files instead of their individual dependencies whenever requested.
@@ -234,31 +234,35 @@ Each fragment should have its name and at least one file specified.
 
 Same result may be achieved with a custom configuration file instead.
 Fragments are configured by adding a `fragments` object to your bundle configuration file.
-The `fragments` object should be an array of arrays, where each array defines which dependencies
-belong in one particular fragment.
+The `fragments` object should be an array of objects, where each object defines a fragment name and files that belong to the fragment.
 
 ```json
 {
   "fragments": [
-    [
-      "bower_components/vaadin-icons/vaadin-icons.html"
-    ],
-
-    [
-      "bower_components/vaadin-form-layout/vaadin-form-layout.html",
-      "bower_components/vaadin-form-layout/vaadin-form-item.html",
-      "bower_components/vaadin-text-field/vaadin-text-field.html",
-      "bower_components/vaadin-text-field/vaadin-password-field.html",
-      "bower_components/vaadin-combo-box/vaadin-combo-box.html"
-    ],
-
-    [
-      "gridConnector.js",
-      "vaadin-grid-flow-selection-column.html",
-      "bower_components/vaadin-grid/vaadin-grid.html",
-      "bower_components/vaadin-grid/vaadin-grid-column-group.html",
-      "bower_components/vaadin-grid/vaadin-grid-sorter.html"
-    ]
+    {
+      "name": "icons-fragment",
+      "files": ["bower_components/vaadin-icons/vaadin-icons.html"]
+    },
+    {
+      "name": "important-components",
+      "files": [
+         "bower_components/vaadin-form-layout/vaadin-form-layout.html",
+         "bower_components/vaadin-form-layout/vaadin-form-item.html",
+         "bower_components/vaadin-text-field/vaadin-text-field.html",
+         "bower_components/vaadin-text-field/vaadin-password-field.html",
+         "bower_components/vaadin-combo-box/vaadin-combo-box.html"
+       ]
+    },
+    {
+      "name": "grid-fragment",
+      "files": [
+         "gridConnector.js",
+         "vaadin-grid-flow-selection-column.html",
+         "bower_components/vaadin-grid/vaadin-grid.html",
+         "bower_components/vaadin-grid/vaadin-grid-column-group.html",
+         "bower_components/vaadin-grid/vaadin-grid-sorter.html"
+       ]
+    }
   ]
 }
 ```
@@ -277,7 +281,7 @@ You still have to configure Maven plugin if the json file is not in the default 
             </goals>
             <configuration>
                 <bundle>true</bundle>
-                <bundleConfiguration>${path.to.json.file.declared.above}</bundleConfiguration>
+                <fragmentConfigurationFile>${path.to.json.file.declared.above}</fragmentConfigurationFile>
             </configuration>
         </execution>
     </executions>

@@ -31,7 +31,7 @@ public class Fragment {
     /**
      * Gets the name of a fragment.
      *
-     * @return the name of a fragment, may be {@code null}
+     * @return the name of a fragment, not {@code null}
      */
     public String getName() {
         return name;
@@ -40,7 +40,7 @@ public class Fragment {
     /**
      * Gets the files that belong to the fragment.
      *
-     * @return the files that belong to a fragment
+     * @return the files that belong to a fragment, not {@code null}
      */
     public Set<String> getFiles() {
         return files;

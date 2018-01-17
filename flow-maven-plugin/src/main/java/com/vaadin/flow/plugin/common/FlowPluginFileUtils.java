@@ -19,8 +19,6 @@ package com.vaadin.flow.plugin.common;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.Objects;
 
 import org.apache.commons.io.FileUtils;
@@ -45,21 +43,6 @@ public final class FlowPluginFileUtils {
             FileUtils.forceMkdir(Objects.requireNonNull(directory));
         } catch (IOException e) {
             throw new UncheckedIOException(String.format("Failed to create directory '%s'", directory), e);
-        }
-    }
-
-    /**
-     * Converts {@link File} to {@link URL} wrapping checked exception.
-     *
-     * @param file file to convert
-     * @return corresponding {@link URL}
-     * @throws IllegalArgumentException when fails to convert
-     */
-    public static URL convertToUrl(File file) {
-        try {
-            return file.toURI().toURL();
-        } catch (MalformedURLException e) {
-            throw new IllegalArgumentException(String.format("Failed to convert file '%s' to URL", file), e);
         }
     }
 }

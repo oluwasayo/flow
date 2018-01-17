@@ -16,6 +16,7 @@
 package com.vaadin.flow.plugin.maven;
 
 import java.io.File;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Collections;
 import java.util.List;
@@ -25,8 +26,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.github.eirslett.maven.plugins.frontend.lib.ProxyConfig;
-import com.google.common.collect.Sets;
-import org.apache.commons.lang3.NotImplementedException;
 import org.apache.maven.artifact.DependencyResolutionRequiredException;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
@@ -42,7 +41,7 @@ import org.apache.maven.settings.crypto.SettingsDecrypter;
 import org.apache.maven.settings.crypto.SettingsDecryptionResult;
 
 import com.vaadin.flow.plugin.common.AnnotationValuesExtractor;
-import com.vaadin.flow.plugin.common.FlowPluginFileUtils;
+import com.vaadin.flow.plugin.common.FrontendDataProvider;
 import com.vaadin.flow.plugin.common.FrontendToolsManager;
 import com.vaadin.flow.plugin.production.TranspilationStep;
 
@@ -69,14 +68,14 @@ public class TranspileProductionFilesMojo extends AbstractMojo {
     @Parameter(property = "skipEs5", defaultValue = "false", required = true)
     private boolean skipEs5;
 
-    @Parameter
+    @Parameter(property = "fragments")
     private List<Fragment> fragments;
 
     @Parameter(property = "bundle", defaultValue = "true", required = true)
     private boolean bundle;
 
-    @Parameter(property = "bundleConfiguration", defaultValue = "${project.basedir}/bundle-configuration.json")
-    private File bundleConfiguration;
+    @Parameter(property = "fragmentConfigurationFile", defaultValue = "${project.basedir}/fragment-configuration.json")
+    private File fragmentConfigurationFile;
 
     @Parameter(name = "nodeVersion", defaultValue = "v8.9.0", required = true)
     private String nodeVersion;
@@ -98,48 +97,23 @@ public class TranspileProductionFilesMojo extends AbstractMojo {
 
     @Override
     public void execute() {
-        FrontendToolsManager frontendToolsManager = new FrontendToolsManager(new AnnotationValuesExtractor(getProjectClassPathUrls()),
-                transpileWorkingDirectory, es5OutputDirectoryName, es6OutputDirectoryName, bundleConfiguration);
-        frontendToolsManager.installFrontendTools(getProxyConfig(), nodeVersion, yarnVersion);
-        new TranspilationStep(frontendToolsManager).transpileFiles(transpileEs6SourceDirectory, transpileOutputDirectory, skipEs5, bundle, getFragmentsData(fragments));
+        FrontendDataProvider frontendDataProvider = new FrontendDataProvider(
+                bundle, transpileEs6SourceDirectory, new AnnotationValuesExtractor(getProjectClassPathUrls()), fragmentConfigurationFile, getFragmentsData(fragments));
+        FrontendToolsManager frontendToolsManager = new FrontendToolsManager(
+                transpileWorkingDirectory, es5OutputDirectoryName, es6OutputDirectoryName, frontendDataProvider);
+        new TranspilationStep(frontendToolsManager, getProxyConfig(), nodeVersion, yarnVersion).transpileFiles(transpileEs6SourceDirectory, transpileOutputDirectory, skipEs5);
     }
 
     private Map<String, Set<String>> getFragmentsData(List<Fragment> mavenFragments) {
         return Optional.ofNullable(mavenFragments).orElse(Collections.emptyList()).stream()
                 .peek(this::verifyFragment)
-                .collect(Collectors.toMap(Fragment::getName, fragment -> getFragmentFiles(transpileEs6SourceDirectory, fragment.getFiles())));
+                .collect(Collectors.toMap(Fragment::getName, Fragment::getFiles));
     }
 
     private void verifyFragment(Fragment fragment) {
         if (fragment.getName() == null || fragment.getFiles() == null || fragment.getFiles().isEmpty()) {
             throw new IllegalArgumentException(String.format("Each fragment definition should have a name and list of files to include defined. Got incorrect definition: '%s'", fragment));
         }
-    }
-
-    private Set<String> getFragmentFiles(File parentDirectory, Set<String> userInput) {
-        String[] parentDirectoryContents = parentDirectory.list();
-        if (parentDirectoryContents == null) {
-            throw new IllegalArgumentException(String.format("File '%s' either does not exist or is not a directory", parentDirectory));
-        }
-
-        Set<String> result = Sets.newHashSetWithExpectedSize(userInput.size());
-        for (String file : userInput) {
-            if (isWildcard(file)) {
-                throw new NotImplementedException("Globs are currently unsupported");
-            } else {
-                File fragmentFile = new File(parentDirectory, file);
-                if (!fragmentFile.exists()) {
-                    throw new IllegalArgumentException(String.format("Fragment file '%s' does not exist", fragmentFile));
-                }
-                result.add(file);
-            }
-        }
-        return result;
-    }
-
-    private boolean isWildcard(String file) {
-        // https://en.wikipedia.org/wiki/Glob_(programming)#Syntax
-        return file.contains("*") || file.contains("?") || file.contains("[") || file.contains("]");
     }
 
     private URL[] getProjectClassPathUrls() {
@@ -151,8 +125,16 @@ public class TranspileProductionFilesMojo extends AbstractMojo {
         }
         return runtimeClasspathElements.stream()
                 .map(File::new)
-                .map(FlowPluginFileUtils::convertToUrl)
+                .map(this::convertToUrl)
                 .toArray(URL[]::new);
+    }
+
+    private URL convertToUrl(File file) {
+        try {
+            return file.toURI().toURL();
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException(String.format("Failed to convert file '%s' to URL", file), e);
+        }
     }
 
     private ProxyConfig getProxyConfig() {
